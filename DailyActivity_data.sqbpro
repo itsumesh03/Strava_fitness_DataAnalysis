@@ -1,0 +1,96 @@
+<?xml version="1.0" encoding="UTF-8"?><sqlb_project><db path="DailyActivity_data.db" readonly="0" foreign_keys="1" case_sensitive_like="0" temp_store="0" wal_autocheckpoint="1000" synchronous="2"/><attached/><window><main_tabs open="structure browser pragmas query" current="3"/></window><tab_structure><column_width id="0" width="300"/><column_width id="1" width="0"/><column_width id="2" width="100"/><column_width id="3" width="2661"/><column_width id="4" width="0"/><expanded_item id="0" parent="1"/><expanded_item id="1" parent="1"/><expanded_item id="2" parent="1"/><expanded_item id="3" parent="1"/></tab_structure><tab_browse><table title="dailyActivity_merged" custom_title="0" dock_id="1" table="4,20:maindailyActivity_merged"/><dock_state state="000000ff00000000fd00000001000000020000043c000002e4fc0100000001fb000000160064006f0063006b00420072006f007700730065003101000000000000043c0000011800ffffff0000043c0000000000000004000000040000000800000008fc00000000"/><default_encoding codec=""/><browse_table_settings><table schema="main" name="dailyActivity_merged" show_row_id="0" encoding="" plot_x_axis="" unlock_view_pk="_rowid_" freeze_columns="0"><sort/><column_widths><column index="1" value="85"/><column index="2" value="78"/><column index="3" value="67"/><column index="4" value="156"/><column index="5" value="156"/><column index="6" value="148"/><column index="7" value="148"/><column index="8" value="156"/><column index="9" value="156"/><column index="10" value="156"/><column index="11" value="112"/><column index="12" value="117"/><column index="13" value="124"/><column index="14" value="109"/><column index="15" value="53"/><column index="16" value="134"/></column_widths><filter_values/><conditional_formats/><row_id_formats/><display_formats/><hidden_columns/><plot_y_axes/><global_filter/></table></browse_table_settings></tab_browse><tab_sql><sql name="SQL 1*">SELECT * FROM dailyActivity_merged ;
+
+--  STEP 1: Cleaning &amp; Preprocessing in SQLite
+-- 🧹 1.1. Check for NULL or Missing Values
+ SELECT 
+  SUM(CASE WHEN Id IS NULL THEN 1 ELSE 0 END) AS NullId,
+  SUM(CASE WHEN ActivityDate IS NULL THEN 1 ELSE 0 END) AS NullActivityDate,
+  SUM(CASE WHEN TotalSteps IS NULL THEN 1 ELSE 0 END) AS NullTotalSteps,
+  SUM(CASE WHEN Calories IS NULL THEN 1 ELSE 0 END) AS NullCalories
+FROM dailyActivity_merged;
+
+--  1.2. Check for Duplicates
+SELECT Id, ActivityDate, COUNT(*) AS cnt
+FROM dailyActivity_merged
+GROUP BY Id, ActivityDate
+HAVING cnt &gt; 1;
+
+-- 1.3. Check for Outliers or Invalids
+-- Negative steps, distance, or calories
+SELECT *
+FROM dailyActivity_merged
+WHERE TotalSteps &lt; 0 OR TotalDistance &lt; 0 OR Calories &lt; 0;
+
+-- 1.4. Convert ActivityDate to usable format (if not already)
+-- Create a new column with ISO format
+-- ALTER TABLE dailyActivity_merged ADD COLUMN ActivityDateFormatted TEXT;
+-- 
+-- UPDATE dailyActivity_merged
+-- SET ActivityDateFormatted = 
+--   substr(ActivityDate, 7, 4) || '-' || 
+--   substr(ActivityDate, 1, 2) || '-' || 
+--   substr(ActivityDate, 4, 2);
+
+  
+--  STEP 2: Insights and Analytics Queries
+--   2.1. Average Steps, Calories, Distance
+SELECT 
+  ROUND(AVG(TotalSteps), 2) AS AvgSteps,
+  ROUND(AVG(TotalDistance), 2) AS AvgDistance,
+  ROUND(AVG(Calories), 2) AS AvgCalories
+FROM dailyActivity_merged;
+
+-- 2.2. Users With Highest Average Activity
+SELECT Id,
+       ROUND(AVG(TotalSteps), 2) AS AvgSteps,
+       ROUND(AVG(Calories), 2) AS AvgCalories
+FROM dailyActivity_merged
+GROUP BY Id
+ORDER BY AvgSteps DESC
+LIMIT 5;
+
+--  2.3. Relationship Between Steps and Calories
+SELECT TotalSteps, Calories
+FROM dailyActivity_merged
+ORDER BY TotalSteps DESC
+LIMIT 20;
+
+--2.4. Active vs Sedentary Minutes Summary
+SELECT 
+  ROUND(AVG(VeryActiveMinutes), 2) AS AvgVeryActive,
+  ROUND(AVG(LightlyActiveMinutes), 2) AS AvgLightlyActive,
+  ROUND(AVG(SedentaryMinutes), 2) AS AvgSedentary
+FROM dailyActivity_merged;
+
+-- 2.5. Days with Over 10k Steps
+SELECT COUNT(*) AS DaysOver10KSteps
+FROM dailyActivity_merged
+WHERE TotalSteps &gt;= 10000;
+
+-- 2.6. Analyzing Daily Activity Distribution Across Users
+WITH user_avg_steps AS (
+  SELECT Id, AVG(TotalSteps) AS avg_steps
+  FROM dailyActivity_merged
+  GROUP BY Id
+)
+SELECT 
+  CASE 
+    WHEN avg_steps &lt; 5000 THEN 'Sedentary (&lt;5k)'
+    WHEN avg_steps BETWEEN 5000 AND 9999 THEN 'Moderately Active (5k–10k)'
+    ELSE 'Highly Active (10k+)' 
+  END AS ActivityLevel,
+  COUNT(*) AS UserCount
+FROM user_avg_steps
+GROUP BY ActivityLevel;
+
+-- 2.7. Calorie Burn Efficiency: Calories per Distance vs Active Minutes
+SELECT 
+  Id,
+  ROUND(SUM(Calories)/SUM(TotalDistance), 2) AS CaloriesPerKM,
+  ROUND(SUM(Calories)/NULLIF(SUM(VeryActiveMinutes + FairlyActiveMinutes + LightlyActiveMinutes), 0), 2) AS CaloriesPerActiveMinute
+FROM dailyActivity_merged
+GROUP BY Id
+HAVING CaloriesPerKM IS NOT NULL AND CaloriesPerActiveMinute IS NOT NULL
+ORDER BY CaloriesPerKM DESC
+LIMIT 10;
+</sql><current_tab id="0"/></tab_sql></sqlb_project>

@@ -1,0 +1,144 @@
+<?xml version="1.0" encoding="UTF-8"?><sqlb_project><db path="Hourlydata.db" readonly="0" foreign_keys="1" case_sensitive_like="0" temp_store="0" wal_autocheckpoint="1000" synchronous="2"/><attached/><window><main_tabs open="structure browser pragmas query" current="3"/></window><tab_structure><column_width id="0" width="300"/><column_width id="1" width="0"/><column_width id="2" width="100"/><column_width id="3" width="807"/><column_width id="4" width="0"/><expanded_item id="0" parent="1"/><expanded_item id="1" parent="1"/><expanded_item id="2" parent="1"/><expanded_item id="3" parent="1"/></tab_structure><tab_browse><table title="hourlyCalories_merged" custom_title="0" dock_id="1" table="4,21:mainhourlyCalories_merged"/><dock_state state="000000ff00000000fd00000001000000020000000000000000fc0100000001fb000000160064006f0063006b00420072006f00770073006500310100000000ffffffff0000011300ffffff000000000000000000000004000000040000000800000008fc00000000"/><default_encoding codec=""/><browse_table_settings/></tab_browse><tab_sql><sql name="SQL 1*">-- CREATE TABLE hourlyActivity_merged AS
+-- SELECT 
+--     c.Id,
+--     c.ActivityHour,
+--     s.StepTotal,
+--     i.TotalIntensity,
+--     i.AverageIntensity,
+--     c.Calories
+-- FROM hourlyCalories_merged c
+-- LEFT JOIN hourlySteps_merged s
+--     ON c.Id = s.Id AND c.ActivityHour = s.ActivityHour
+-- LEFT JOIN hourlyIntensities_merged i
+--     ON c.Id = i.Id AND c.ActivityHour = i.ActivityHour;
+	
+SELECT * FROM hourlyActivity_merged ;
+
+
+--2. Data Cleaning and pre processing
+
+--Check for Missing or Null Values
+SELECT 
+    SUM(CASE WHEN Id IS NULL THEN 1 ELSE 0 END) AS NullId,
+    SUM(CASE WHEN ActivityHour IS NULL THEN 1 ELSE 0 END) AS NullActivityHour,
+    SUM(CASE WHEN StepTotal IS NULL THEN 1 ELSE 0 END) AS NullStepTotal,
+    SUM(CASE WHEN TotalIntensity IS NULL THEN 1 ELSE 0 END) AS NullTotalIntensity,
+    SUM(CASE WHEN AverageIntensity IS NULL THEN 1 ELSE 0 END) AS NullAverageIntensity,
+    SUM(CASE WHEN Calories IS NULL THEN 1 ELSE 0 END) AS NullCalories
+FROM hourlyActivity_merged;
+
+
+
+
+-- Check for Duplicates
+SELECT 
+    Id, ActivityHour, COUNT(*) AS Count
+FROM hourlyActivity_merged
+GROUP BY Id, ActivityHour
+HAVING Count &gt; 1;
+
+--Standardize Date Format (Optional, for easier filtering)
+SELECT DISTINCT ActivityHour 
+FROM hourlyActivity_merged 
+LIMIT 5;
+
+--Steps or Calories Negative?
+SELECT * 
+FROM hourlyActivity_merged
+WHERE StepTotal &lt; 0 OR Calories &lt; 0;
+
+
+
+--Check for Incomplete User Records (Users with very few hours logged)
+
+SELECT Id, COUNT(*) AS LoggedHours
+FROM hourlyActivity_merged
+GROUP BY Id
+ORDER BY LoggedHours ASC;
+
+
+--3. Data Analysis &amp; insights
+-- Total Steps, Calories, and Intensity by User
+
+SELECT 
+    Id,
+    SUM(StepTotal) AS TotalSteps,
+    SUM(Calories) AS TotalCalories,
+    SUM(TotalIntensity) AS TotalIntensity
+FROM hourlyActivity_merged
+GROUP BY Id
+ORDER BY TotalSteps DESC;
+-- Insight: Identifies the most active users.
+
+
+-- Average Hourly Activity Across All Users
+
+SELECT 
+    strftime('%H', ActivityHour) AS Hour,
+    ROUND(AVG(StepTotal), 2) AS AvgSteps,
+    ROUND(AVG(Calories), 2) AS AvgCalories,
+    ROUND(AVG(TotalIntensity), 2) AS AvgIntensity
+FROM hourlyActivity_merged
+GROUP BY Hour
+ORDER BY Hour;
+
+-- 🧠 Insight: Shows which hours of the day are most active across all users. Useful for Bellabeat to suggest
+-- optimal workout times.
+
+
+
+
+-- Top 5 Most Active Hours for a Specific User
+SELECT 
+    ActivityHour,
+    StepTotal,
+    Calories,
+    TotalIntensity
+FROM hourlyActivity_merged
+WHERE Id = 1503960366
+ORDER BY StepTotal DESC
+LIMIT 5;
+-- 🧠 Insight: Helps understand user behavior at peak performance times.
+
+
+-- Sedentary Hours (Zero Steps)
+SELECT COUNT(*) AS SedentaryHours
+FROM hourlyActivity_merged
+WHERE StepTotal = 0;
+--🧠 Insight: Shows how often users are inactive — Bellabeat could encourage movement reminders.
+
+
+
+-- Active vs Inactive Hours Distribution
+SELECT 
+    CASE 
+        WHEN StepTotal = 0 THEN 'Inactive'
+        ELSE 'Active'
+    END AS ActivityStatus,
+    COUNT(*) AS HourCount
+FROM hourlyActivity_merged
+GROUP BY ActivityStatus;
+--🧠 Insight: Bellabeat can tailor health prompts or coaching messages around inactivity.
+
+
+
+--Calories Burned by Hour Across All Users
+SELECT 
+    strftime('%H', ActivityHour) AS Hour,
+    ROUND(SUM(Calories), 2) AS TotalCaloriesBurned
+FROM hourlyActivity_merged
+GROUP BY Hour
+ORDER BY TotalCaloriesBurned DESC;
+--🧠 Insight: Ideal for plotting a heatmap or bar chart in Power BI to visualize energy expenditure patterns.
+
+
+-- Users with Consistently High Hourly Steps (&gt;500 avg/hour)
+SELECT 
+    Id,
+    ROUND(AVG(StepTotal), 2) AS AvgStepsPerHour
+FROM hourlyActivity_merged
+GROUP BY Id
+HAVING AvgStepsPerHour &gt; 500
+ORDER BY AvgStepsPerHour DESC;
+-- 🧠 Insight: Target high-performance users for premium product marketing or gamification.
+</sql><current_tab id="0"/></tab_sql></sqlb_project>
